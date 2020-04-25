@@ -114,7 +114,8 @@
     file: 'sampledata/models/Piano_01.obj',
     name: 'Piano_01',
     recenter: 'root',
-    scale: 0.094320000000000001,
+    scale: 0.05,
   },
   version: '0.54:2',
 }
+
