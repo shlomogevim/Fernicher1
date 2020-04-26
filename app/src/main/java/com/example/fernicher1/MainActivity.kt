@@ -14,6 +14,7 @@ import com.google.ar.core.Anchor
 import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.Node
 import com.google.ar.sceneform.collision.Box
+import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.ModelRenderable
 import com.google.ar.sceneform.rendering.ViewRenderable
@@ -23,16 +24,19 @@ import kotlinx.android.synthetic.main.activity_main.*
 import java.util.concurrent.CompletableFuture
 
 private const val PEEK = 50f
+private const val DOUBLE_TAB_TOLERANCE_MS=1000L
 
 class MainActivity : AppCompatActivity() {
+    lateinit var arFragment: ArFragment
+    lateinit var selectedModel: Model
+    val viewNodes= mutableListOf<Node>()
+
     private val models = mutableListOf(
         Model(R.drawable.chair, "Chair", R.raw.chair),
         Model(R.drawable.oven, "Oven", R.raw.oven),
         Model(R.drawable.piano, "Piano", R.raw.piano),
         Model(R.drawable.table, "Table", R.raw.table)
     )
-    lateinit var arFragment: ArFragment
-    lateinit var selectedModel: Model
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,13 +45,26 @@ class MainActivity : AppCompatActivity() {
         setupButtomSheet()
         setupRecyclerView()
         setupDoubleTapArPlaneListner()
+        getCurrentScene().addOnUpdateListener {
+            rotateViewNodesTowardUser()
+        }
     }
 
     private fun setupDoubleTapArPlaneListner(){
+        var firstTapTime=0L
+
         arFragment.setOnTapArPlaneListener { hitResult, _, _t ->
-            loadModel { modelRenderable, viewRenderable ->
-                addNodeToSence(hitResult.createAnchor(),modelRenderable,viewRenderable)
+            if (firstTapTime==0L){
+                firstTapTime=System.currentTimeMillis()
+            }else if (System.currentTimeMillis()-firstTapTime< DOUBLE_TAB_TOLERANCE_MS){
+                firstTapTime=0
+                loadModel { modelRenderable, viewRenderable ->
+                    addNodeToSence(hitResult.createAnchor(),modelRenderable,viewRenderable)
+                }
+            }else{
+                firstTapTime=System.currentTimeMillis()
             }
+
         }
 
     }
@@ -75,6 +92,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun getCurrentScene()=arFragment.arSceneView.scene
 
+    private fun rotateViewNodesTowardUser(){
+        for (node in viewNodes){
+            node.renderable?.let {
+                val camPos=getCurrentScene().camera.worldPosition
+                val viewNodePos=node.worldPosition
+                val dir=Vector3.subtract(camPos, viewNodePos)
+                node.worldRotation= Quaternion.lookRotation(dir, Vector3.up())
+            }
+        }
+    }
+
     private fun addNodeToSence(               // locate the object anh his view in the ARsence
         anchor: Anchor,                        // anchore point, fill the object is part of the scene
         modelRenderable: ModelRenderable,
@@ -94,8 +122,10 @@ class MainActivity : AppCompatActivity() {
             localPosition= Vector3(0f,box.size.y,0f)  // it value of x,y,z locale cordinate mesure from anchor node
             (viewRenderable.view as Button).setOnClickListener {  // in a case when you press delete buttom
                 getCurrentScene().removeChild(anchorNode)
+                viewNodes.remove(this)
             }
         }
+        viewNodes.add(viewNode)
       modelNode.setOnTapListener{_,_->
         if (!modelNode.isTransforming){
         if (viewNode.renderable==null){
@@ -105,8 +135,9 @@ class MainActivity : AppCompatActivity() {
         }
         }
       }
-
     }
+
+
 
     private fun createDeleteButton(): Button {
         return Button(this).apply {
