@@ -2,9 +2,11 @@ package com.example.fernicher1
 
 import android.graphics.Color.RED
 import android.graphics.Color.WHITE
+import android.media.CamcorderProfile
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.Toast
 import androidx.lifecycle.Observer
@@ -26,10 +28,13 @@ import java.util.concurrent.CompletableFuture
 private const val PEEK = 50f
 private const val DOUBLE_TAB_TOLERANCE_MS=1000L
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(){
     lateinit var arFragment: ArFragment
     lateinit var selectedModel: Model
     val viewNodes= mutableListOf<Node>()
+    private lateinit var photoSaver: PhotoSaver
+    private lateinit var videoRecorder: VideoRecorder
+    private var isRecording=false
 
     private val models = mutableListOf(
         Model(R.drawable.chair, "Chair", R.raw.chair),
@@ -44,23 +49,70 @@ class MainActivity : AppCompatActivity() {
         arFragment=fragment as ArFragment
         setupButtomSheet()
         setupRecyclerView()
-        setupDoubleTapArPlaneListner()
+        setupDoubleTapArPlaneListener()
+        photoSaver= PhotoSaver(this)
+        videoRecorder=VideoRecorder(this).apply {
+            sceneView = arFragment.arSceneView
+
+            setVideoQuality(CamcorderProfile.QUALITY_1080P, resources.configuration.orientation)
+
+        }
+        setupFab()
         getCurrentScene().addOnUpdateListener {
             rotateViewNodesTowardUser()
         }
     }
 
-    private fun setupDoubleTapArPlaneListner(){
+    private fun setupFab() {
+
+        fab.setOnClickListener {
+
+            if(!isRecording) {
+
+                photoSaver.takePhoto(arFragment.arSceneView)
+
+            }
+
+        }
+
+        fab.setOnLongClickListener {
+
+            isRecording = videoRecorder.toggleRecordingState()
+
+            true
+
+        }
+
+        fab.setOnTouchListener { view, motionEvent ->
+
+            if(motionEvent.action == MotionEvent.ACTION_UP && isRecording) {
+
+                isRecording = videoRecorder.toggleRecordingState()
+
+                Toast.makeText(this, "Saved video to gallery!", Toast.LENGTH_LONG).show()
+
+                true
+
+            } else false
+
+        }
+
+    }
+
+    private fun setupDoubleTapArPlaneListener(){
         var firstTapTime=0L
 
-        arFragment.setOnTapArPlaneListener { hitResult, _, _t ->
+        arFragment.setOnTapArPlaneListener { hitResult, _, _ ->
             if (firstTapTime==0L){
                 firstTapTime=System.currentTimeMillis()
             }else if (System.currentTimeMillis()-firstTapTime< DOUBLE_TAB_TOLERANCE_MS){
+
                 firstTapTime=0
                 loadModel { modelRenderable, viewRenderable ->
                     addNodeToSence(hitResult.createAnchor(),modelRenderable,viewRenderable)
+
                 }
+
             }else{
                 firstTapTime=System.currentTimeMillis()
             }
@@ -113,7 +165,8 @@ class MainActivity : AppCompatActivity() {
             renderable=modelRenderable
             setParent(anchorNode)                      // case that his parents will be anchor node
             getCurrentScene().addChild(anchorNode)
-            select()
+
+                    select()
         }
         val viewNode=Node().apply {      // its include the delete buttom
             renderable=null
