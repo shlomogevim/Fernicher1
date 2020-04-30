@@ -53,6 +53,8 @@ class MainActivity : AppCompatActivity() {
         if (arFragment!=null){
             arFragment.transformationSystem.selectionVisualizer = CustemVisualizer()
         }
+
+        setupFab()
         setupButtomSheet()
         setupRecyclerView()
         setupDoubleTapArPlaneListener()
